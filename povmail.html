@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POVMail — write once, see it their way</title>
+<style>
+  :root{
+    --ink:#1f2a44;
+    --ink-2:#2b3a5e;
+    --gold:#b9812f;
+    --gold-light:#e0ab5c;
+    --backdrop-1:#e9ecf1;
+    --backdrop-2:#d5dae2;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background: var(--backdrop-2);
+    color:#1f2937;
+    min-height:100vh;
+    transition:background .25s;
+  }
+
+  /* ---------- Tool chrome (POVMail's own UI, not any mimicked client) ---------- */
+  .tool-header{
+    background:linear-gradient(135deg,var(--ink),var(--ink-2));
+    color:#fff;
+    padding:22px 24px 18px;
+    border-bottom:3px solid var(--gold);
+  }
+  .tool-header .eyebrow{
+    text-transform:uppercase;
+    letter-spacing:.14em;
+    font-size:11px;
+    color:var(--gold-light);
+    font-weight:700;
+    margin:0 0 6px;
+  }
+  .tool-header h1{
+    margin:0 0 6px;
+    font-size:23px;
+    font-weight:800;
+    letter-spacing:-0.01em;
+  }
+  .tool-header p{
+    margin:0;
+    font-size:13.5px;
+    color:#c7cede;
+    max-width:640px;
+    line-height:1.5;
+  }
+
+  .controls{
+    background:#161d30;
+    padding:12px 24px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+    border-bottom:1px solid #0e1422;
+    position:sticky;
+    top:0;
+    z-index:20;
+  }
+  .picker-row{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    padding:2px 0;
+    flex:1 1 420px;
+    scrollbar-width:thin;
+  }
+  .picker-row::-webkit-scrollbar{height:6px;}
+  .picker-row::-webkit-scrollbar-thumb{background:#3a4460;border-radius:3px;}
+  .skin-pill{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    background:#232b45;
+    border:1px solid #343f60;
+    color:#dbe0ee;
+    padding:7px 12px 7px 8px;
+    border-radius:999px;
+    font-size:12.5px;
+    font-weight:600;
+    white-space:nowrap;
+    cursor:pointer;
+    transition:background .15s,border-color .15s;
+  }
+  .skin-pill:hover{background:#2b3454;}
+  .skin-pill.active{background:var(--gold);border-color:var(--gold);color:#241a05;}
+  .skin-dot{
+    width:14px;height:14px;border-radius:50%;flex:0 0 auto;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.15);
+  }
+
+  .toolbar-actions{
+    display:flex;
+    gap:6px;
+    align-items:center;
+    flex:0 0 auto;
+  }
+  .fmt-btn, .act-btn{
+    border:1px solid #343f60;
+    background:#232b45;
+    color:#dbe0ee;
+    border-radius:8px;
+    padding:7px 10px;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .fmt-btn{width:32px;font-family:Georgia,serif;}
+  .fmt-btn:hover, .act-btn:hover{background:#2b3454;}
+  .act-btn.primary{background:var(--gold);border-color:var(--gold);color:#241a05;}
+  .act-btn.primary:hover{background:var(--gold-light);}
+  .act-btn.theme-toggle{display:flex;align-items:center;gap:6px;}
+  .divider-v{width:1px;height:22px;background:#343f60;margin:0 2px;}
+
+  .stage-backdrop{
+    padding:44px 20px 60px;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+    overflow-x:auto;
+    background:radial-gradient(ellipse 900px 400px at 50% -8%, var(--backdrop-1), var(--backdrop-2));
+    min-height:560px;
+    transition:background .25s;
+  }
+  body.dark .stage-backdrop{
+    background:radial-gradient(ellipse 900px 400px at 50% -8%, #262c3c, #12151d);
+  }
+
+  .footnote{
+    text-align:center;
+    font-size:11.5px;
+    color:#6b7280;
+    padding:0 20px 34px;
+    max-width:680px;
+    margin:0 auto;
+    line-height:1.6;
+  }
+  body.dark .footnote{ color:#8792a8; }
+
+  /* ---------- Shared device shell ---------- */
+  .device{
+    filter: drop-shadow(0 24px 40px rgba(31,42,68,.30)) drop-shadow(0 6px 14px rgba(31,42,68,.18));
+  }
+  .desktop-device{ width:min(880px,86vw); }
+  .browser-chrome{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px;
+    border-radius:12px 12px 0 0;
+    background:var(--chrome-bg);
+    border-bottom:1px solid var(--border);
+  }
+  .browser-chrome .dot{width:11px;height:11px;border-radius:50%;display:inline-block;}
+  .browser-chrome .dot.red{background:#ff5f57;}
+  .browser-chrome .dot.yellow{background:#febc2e;}
+  .browser-chrome .dot.green{background:#28c840;}
+  .browser-chrome .win-dots{width:11px;height:11px;border-radius:3px;background:#c7c7c7;display:inline-block;}
+  .addr-bar{
+    flex:1;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:5px 14px;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .app-body{ display:flex; min-height:520px; background:var(--surface); border-radius:0 0 12px 12px; overflow:hidden; }
+  .app-sidebar{
+    width:190px;
+    flex:0 0 auto;
+    padding:16px 12px;
+    background:var(--sidebar-bg);
+    border-right:1px solid var(--border);
+  }
+  .brand-mark{ font-size:15px; font-weight:800; margin:2px 4px 16px; color:var(--text); }
+  .compose-btn{
+    display:inline-block;
+    padding:10px 18px;
+    font-size:13px;
+    font-weight:700;
+    margin-bottom:16px;
+    cursor:default;
+    background:var(--compose-bg);
+    color:var(--compose-color);
+  }
+  .folder-list{ list-style:none; margin:0; padding:0; font-size:13.5px; }
+  .folder-list li{ padding:8px 10px; margin-bottom:2px; color:var(--muted); cursor:default; }
+  .folder-list li.active{ font-weight:700; background:var(--active-bg); color:var(--active-color); }
+
+  .email-view{ flex:1; min-width:0; padding:22px 30px 30px; color:var(--text); background:var(--surface); }
+
+  .phone-device{ width:min(380px,90vw); }
+  .phone-bezel{
+    background:var(--surface);
+    border-radius:38px;
+    border:9px solid #14161b;
+    overflow:hidden;
+    min-height:680px;
+    display:flex;
+    flex-direction:column;
+  }
+  .status-bar{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:9px 20px 4px;
+    font-size:12px;font-weight:700;
+    background:var(--chrome-bg);
+    color:var(--text);
+  }
+  .app-topbar{
+    display:flex;align-items:center;gap:10px;
+    padding:6px 14px 12px;
+    background:var(--chrome-bg);
+  }
+  .app-topbar .app-title{ flex:1; font-size:15px; font-weight:800; color:var(--text); }
+  .phone-bezel .email-view{ padding:8px 18px 24px; flex:1; }
+
+  /* ---------- Reading-pane internals (shared across all skins) ---------- */
+  .ev-toolbar{ display:flex; align-items:center; gap:4px; margin-bottom:14px; }
+  .ev-icon{
+    border:none;background:transparent;color:var(--muted);
+    width:30px;height:30px;border-radius:50%;
+    font-size:15px;cursor:default;
+  }
+  .ev-toolbar-spacer{ flex:1; }
+  .ev-subject-row{ margin-bottom:14px; }
+  .ev-subject{
+    width:100%;border:none;outline:none;background:transparent;
+    font-family:inherit;padding:2px 0;color:var(--text);
+  }
+  .ev-meta{ display:flex; align-items:flex-start; gap:12px; margin-bottom:16px; }
+  .ev-avatar{
+    width:38px;height:38px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;
+    font-size:15px;font-weight:700;color:#fff;
+    background:var(--avatar-bg);
+  }
+  .ev-meta-main{ flex:1; min-width:0; }
+  .ev-fromline{ display:flex; align-items:center; flex-wrap:wrap; gap:2px; font-size:13.5px; font-weight:700; }
+  .ev-from-name{ border:none;outline:none;background:transparent;font:inherit;font-weight:700;width:120px;color:var(--text); }
+  .ev-anglebracket{ font-weight:400; color:var(--muted); display:inline-flex; align-items:center; font-size:12.5px; }
+  .ev-from-email{ border:none;outline:none;background:transparent;font:inherit;font-weight:400;color:var(--muted);width:170px;font-size:12.5px; }
+  .ev-toline{ font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .ev-to-name{ border:none;outline:none;background:transparent;font:inherit;color:var(--muted);width:140px; }
+  .ev-date-col{ display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex:0 0 auto; width:120px; }
+  .ev-date{ width:100%; text-align:right; font-size:11.5px; color:var(--muted); border:none; background:transparent; font-family:inherit; }
+  .ev-watermark{
+    font-size:9px; line-height:1.3; font-style:italic;
+    color:var(--muted); opacity:.75; text-align:right; letter-spacing:.01em;
+  }
+  .ev-body{
+    outline:none;
+    min-height:220px;
+    font-size:14px;
+    line-height:1.65;
+    padding-top:8px;
+    border-top:1px solid var(--border);
+    color:var(--text);
+  }
+  .ev-body:empty:before{ content:attr(data-placeholder); color:var(--muted); }
+  .ev-body ul{ padding-left:20px; }
+
+  /* =========================================================
+     SKIN: Gmail — Desktop
+     ========================================================= */
+  .stage.skin-gmail-desktop{ --sidebar-bg:#f6f8fc; --surface:#fff; --chrome-bg:#fff; --text:#202124; --muted:#5f6368; --avatar-bg:#1a73e8; --active-bg:#d3e3fd; --active-color:#001d35; --compose-bg:#c2e7ff; --compose-color:#001d35; --border:#eceff3; }
+  body.dark .stage.skin-gmail-desktop{ --sidebar-bg:#131314; --surface:#1e1f20; --chrome-bg:#1e1f20; --text:#e8eaed; --muted:#9aa0a6; --avatar-bg:#8ab4f8; --active-bg:#39424f; --active-color:#a8c7fa; --compose-bg:#0b57d0; --compose-color:#d3e3fd; --border:#3c4043; }
+  .skin-gmail-desktop .compose-btn{ border-radius:16px; }
+  .skin-gmail-desktop .folder-list li.active{ border-radius:0 16px 16px 0; }
+  .skin-gmail-desktop .email-view{ font-family:"Google Sans",Roboto,Arial,sans-serif; }
+  .skin-gmail-desktop .ev-subject{ font-size:22px; font-weight:400; }
+  .skin-gmail-desktop .ev-avatar{ border-radius:50%; }
+
+  /* =========================================================
+     SKIN: Gmail — Mobile
+     ========================================================= */
+  .stage.skin-gmail-mobile{ --chrome-bg:#fff; --surface:#fff; --text:#202124; --muted:#5f6368; --avatar-bg:#d93025; --border:#eceff3; }
+  body.dark .stage.skin-gmail-mobile{ --chrome-bg:#1e1f20; --surface:#131314; --text:#e8eaed; --muted:#9aa0a6; --avatar-bg:#f28b82; --border:#3c4043; }
+  .skin-gmail-mobile .app-title{ font-size:14px; font-weight:600; }
+  .skin-gmail-mobile .email-view{ font-family:"Google Sans",Roboto,Arial,sans-serif; }
+  .skin-gmail-mobile .ev-subject{ font-size:19px; font-weight:400; }
+  .skin-gmail-mobile .ev-avatar{ border-radius:50%; }
+
+  /* =========================================================
+     SKIN: Outlook — Desktop
+     ========================================================= */
+  .stage.skin-outlook-desktop{ --sidebar-bg:#faf9f8; --surface:#fff; --chrome-bg:#f3f2f1; --text:#201f1e; --muted:#605e5c; --avatar-bg:#0078d4; --active-bg:#edebe9; --active-color:#201f1e; --compose-bg:#0078d4; --compose-color:#fff; --border:#edebe9; }
+  body.dark .stage.skin-outlook-desktop{ --sidebar-bg:#201f1e; --surface:#292827; --chrome-bg:#201f1e; --text:#f3f2f1; --muted:#c8c6c4; --avatar-bg:#2899f5; --active-bg:#3b3a39; --active-color:#f3f2f1; --compose-bg:#2899f5; --compose-color:#1b1a19; --border:#3b3a39; }
+  .skin-outlook-desktop .compose-btn{ border-radius:2px; }
+  .skin-outlook-desktop .folder-list li.active{ border-left:3px solid var(--avatar-bg); padding-left:7px; }
+  .skin-outlook-desktop .email-view{ font-family:"Segoe UI",Tahoma,Arial,sans-serif; }
+  .skin-outlook-desktop .ev-subject{ font-size:19px; font-weight:600; }
+  .skin-outlook-desktop .ev-avatar{ border-radius:50%; }
+  .skin-outlook-desktop .app-body{ border-radius:0 0 4px 4px; }
+  .skin-outlook-desktop .browser-chrome{ border-radius:4px 4px 0 0; }
+
+  /* =========================================================
+     SKIN: Apple Mail — Desktop
+     ========================================================= */
+  .stage.skin-apple-mail-desktop{ --sidebar-bg:#f5f5f7; --surface:#fff; --chrome-bg:#ececec; --text:#1c1c1e; --muted:#8e8e93; --avatar-bg:#8e8e93; --active-bg:#007aff; --active-color:#fff; --compose-bg:#e9e9eb; --compose-color:#007aff; --border:#e5e5ea; }
+  body.dark .stage.skin-apple-mail-desktop{ --sidebar-bg:#1c1c1e; --surface:#242426; --chrome-bg:#2c2c2e; --text:#f2f2f7; --muted:#98989d; --avatar-bg:#98989d; --active-bg:#0a84ff; --active-color:#fff; --compose-bg:#3a3a3c; --compose-color:#0a84ff; --border:#38383a; }
+  .skin-apple-mail-desktop .browser-chrome{ justify-content:flex-start; border-radius:10px 10px 0 0; }
+  .skin-apple-mail-desktop .addr-bar{ display:none; }
+  .skin-apple-mail-desktop .brand-mark{ font-size:13px; }
+  .skin-apple-mail-desktop .compose-btn{ border-radius:6px; }
+  .skin-apple-mail-desktop .folder-list li.active{ border-radius:6px; }
+  .skin-apple-mail-desktop .email-view{ font-family:-apple-system,"SF Pro Text",Helvetica,Arial,sans-serif; }
+  .skin-apple-mail-desktop .ev-subject{ font-size:17px; font-weight:700; }
+  .skin-apple-mail-desktop .ev-avatar{ border-radius:50%; }
+  .skin-apple-mail-desktop .ev-body{ font-size:13.5px; }
+  .skin-apple-mail-desktop .app-body{ border-radius:0 0 10px 10px; }
+
+  /* =========================================================
+     SKIN: BlueMail — Mobile
+     ========================================================= */
+  .stage.skin-bluemail-mobile{ --chrome-bg:#1e6fe0; --surface:#fff; --text:#1a1a1a; --muted:#6b7280; --avatar-bg:#1e6fe0; --border:#eceff3; }
+  body.dark .stage.skin-bluemail-mobile{ --chrome-bg:#123c7a; --surface:#14161b; --text:#eef1f5; --muted:#98a2b3; --avatar-bg:#4c8dff; --border:#2a2e37; }
+  .skin-bluemail-mobile .app-topbar{ padding-top:10px; padding-bottom:14px; }
+  .skin-bluemail-mobile .app-topbar .app-title, .skin-bluemail-mobile .app-topbar .ev-icon{ color:#fff; }
+  .skin-bluemail-mobile .status-bar{ color:#fff; }
+  .skin-bluemail-mobile .email-view{ font-family:Roboto,-apple-system,Arial,sans-serif; padding-top:16px; }
+  .skin-bluemail-mobile .ev-subject{ font-size:18px; font-weight:700; }
+  .skin-bluemail-mobile .ev-avatar{ border-radius:12px; }
+
+  /* =========================================================
+     SKIN: Titan Email — Webmail
+     ========================================================= */
+  .stage.skin-titan-desktop{ --sidebar-bg:#fbfaff; --surface:#fff; --chrome-bg:#fff; --text:#1a1a2e; --muted:#6b6f8a; --avatar-bg:linear-gradient(135deg,#6a5cf5,#17c3b2); --active-bg:#efecff; --active-color:#4b3fd6; --compose-bg:linear-gradient(135deg,#6a5cf5,#17c3b2); --compose-color:#fff; --border:#eef0f7; }
+  body.dark .stage.skin-titan-desktop{ --sidebar-bg:#15131f; --surface:#1c1a29; --chrome-bg:#1c1a29; --text:#eceaf7; --muted:#a29ecb; --avatar-bg:linear-gradient(135deg,#8a7bff,#22e0cb); --active-bg:#2a2440; --active-color:#c9c2ff; --compose-bg:linear-gradient(135deg,#8a7bff,#22e0cb); --compose-color:#12101c; --border:#2e2a44; }
+  .skin-titan-desktop .brand-mark{ color:#4b3fd6; }
+  body.dark .skin-titan-desktop .brand-mark{ color:#a99bff; }
+  .skin-titan-desktop .compose-btn{ border-radius:10px; }
+  .skin-titan-desktop .folder-list li.active{ border-radius:8px; }
+  .skin-titan-desktop .email-view{ font-family:"Inter",-apple-system,"Segoe UI",Arial,sans-serif; }
+  .skin-titan-desktop .ev-subject{ font-size:20px; font-weight:700; }
+  .skin-titan-desktop .ev-avatar{ border-radius:10px; }
+  .skin-titan-desktop .app-body{ border-radius:0 0 12px 12px; }
+  .skin-titan-desktop .browser-chrome{ border-radius:12px 12px 0 0; }
+
+  /* =========================================================
+     SKIN: Generic — Phone Mail App
+     ========================================================= */
+  .stage.skin-generic-phone{ --chrome-bg:#fff; --surface:#fff; --text:#1e293b; --muted:#64748b; --avatar-bg:#64748b; --border:#eceff3; }
+  body.dark .stage.skin-generic-phone{ --chrome-bg:#1e2530; --surface:#151a22; --text:#e2e8f0; --muted:#94a3b8; --avatar-bg:#94a3b8; --border:#2a323f; }
+  .skin-generic-phone .app-topbar{ border-bottom:1px solid var(--border); }
+  .skin-generic-phone .email-view{ font-family:system-ui,-apple-system,Arial,sans-serif; }
+  .skin-generic-phone .ev-subject{ font-size:17px; font-weight:600; }
+  .skin-generic-phone .ev-avatar{ border-radius:50%; }
+
+  /* =========================================================
+     SKIN: Generic — Desktop Webmail
+     ========================================================= */
+  .stage.skin-generic-desktop{ --sidebar-bg:#f8fafc; --surface:#fff; --chrome-bg:#f1f5f9; --text:#1e293b; --muted:#64748b; --avatar-bg:#475569; --active-bg:#e2e8f0; --active-color:#1e293b; --compose-bg:#475569; --compose-color:#fff; --border:#e2e8f0; }
+  body.dark .stage.skin-generic-desktop{ --sidebar-bg:#161c26; --surface:#0f141b; --chrome-bg:#161c26; --text:#e2e8f0; --muted:#94a3b8; --avatar-bg:#64748b; --active-bg:#232b38; --active-color:#e2e8f0; --compose-bg:#64748b; --compose-color:#0f141b; --border:#232b38; }
+  .skin-generic-desktop .compose-btn{ border-radius:6px; }
+  .skin-generic-desktop .folder-list li.active{ border-radius:6px; }
+  .skin-generic-desktop .email-view{ font-family:system-ui,-apple-system,Arial,sans-serif; }
+  .skin-generic-desktop .ev-subject{ font-size:19px; font-weight:600; }
+  .skin-generic-desktop .ev-avatar{ border-radius:50%; }
+
+  /* ---------- Toast ---------- */
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;
+    font-size:13px;font-weight:600;box-shadow:0 10px 24px rgba(0,0,0,.25);
+    opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;
+    z-index:50;
+  }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
+
+  @media (max-width:640px){
+    .tool-header{ padding:18px 16px 14px; }
+    .controls{ padding:10px 12px; }
+    .stage-backdrop{ padding:28px 10px 44px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="tool-header">
+    <p class="eyebrow">Draft it once · read it their way</p>
+    <h1>POVMail</h1>
+    <p>Type your email below. Switch the reading UI to see exactly how it will look for the person opening it, then copy the subject and message straight into your real mail draft.</p>
+  </div>
+
+  <div class="controls">
+    <div class="picker-row" id="pickerRow"></div>
+    <div class="toolbar-actions">
+      <button class="fmt-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+      <button class="fmt-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+      <button class="fmt-btn" data-cmd="underline" title="Underline"><u>U</u></button>
+      <button class="fmt-btn" data-cmd="insertUnorderedList" title="Bullet list">&#8226;</button>
+      <div class="divider-v"></div>
+      <button class="act-btn theme-toggle" id="themeToggle"><span id="themeIcon">&#127765;</span> <span id="themeLabel">Dark mode</span></button>
+      <button class="act-btn" id="clearBtn">Clear</button>
+      <button class="act-btn" id="copySubjectBtn">Copy subject</button>
+      <button class="act-btn primary" id="copyBodyBtn">Copy message</button>
+    </div>
+  </div>
+
+  <div class="stage-backdrop">
+    <div id="stage" class="stage"></div>
+  </div>
+
+  <p class="footnote">POVMail is an independent preview tool — not affiliated with or endorsed by Google, BlueMail, Titan, Microsoft, or Apple. Every preview carries a small "not an original email" mark under the timestamp, and screenshots of this tool should never be presented as a real, received message.</p>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+  const SKINS = [
+    { id:'gmail-desktop',        label:'Gmail',        sub:'Desktop', frame:'desktop', chrome:'browser', dot:'conic-gradient(#4285F4,#EA4335,#FBBC05,#34A853)', brandMark:'Gmail', compose:'Compose', url:'mail.google.com/mail/u/0' },
+    { id:'gmail-mobile',         label:'Gmail',        sub:'Mobile',  frame:'phone',   chrome:'plain',   dot:'conic-gradient(#4285F4,#EA4335,#FBBC05,#34A853)', brandMark:'Gmail' },
+    { id:'outlook-desktop',      label:'Outlook',      sub:'Desktop', frame:'desktop', chrome:'browser', dot:'#0078d4', brandMark:'Outlook', compose:'New message', url:'outlook.office.com/mail' },
+    { id:'apple-mail-desktop',   label:'Apple Mail',   sub:'Desktop', frame:'desktop', chrome:'mac',     dot:'linear-gradient(135deg,#5ac8fa,#007aff)', brandMark:'Mailboxes', compose:'New Message' },
+    { id:'bluemail-mobile',      label:'BlueMail',     sub:'Mobile',  frame:'phone',   chrome:'plain',   dot:'#1e6fe0', brandMark:'BlueMail' },
+    { id:'titan-desktop',        label:'Titan Email',  sub:'Webmail', frame:'desktop', chrome:'browser', dot:'linear-gradient(135deg,#6a5cf5,#17c3b2)', brandMark:'Titan', compose:'Compose', url:'mail.titan.email' },
+    { id:'generic-phone',        label:'Generic',      sub:'Phone',   frame:'phone',   chrome:'plain',   dot:'transparent', outline:true, brandMark:'Mail' },
+    { id:'generic-desktop',      label:'Generic',      sub:'Desktop', frame:'desktop', chrome:'browser', dot:'transparent', outline:true, brandMark:'Webmail', compose:'Compose', url:'webmail.example.com' },
+  ];
+
+  const state = {
+    skinId:'gmail-desktop',
+    fromName:'You',
+    fromEmail:'you@yourcompany.com',
+    toName:'Alex Rivera',
+    date:'Today, 10:42 AM',
+    subject:'Quarterly report is ready',
+    bodyHTML:'<div>Hi Alex,</div><div><br></div><div>The Q3 report is attached — revenue is up 12% from last quarter and the new onboarding flow is already showing better activation numbers.</div><div><br></div><div>Let me know if you would like to walk through it before Thursday\'s meeting.</div><div><br></div><div>Best,<br>You</div>'
+  };
+  let darkMode = false;
+
+  const stage = document.getElementById('stage');
+  const pickerRow = document.getElementById('pickerRow');
+  const toast = document.getElementById('toast');
+
+  function esc(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function buildPicker(){
+    pickerRow.innerHTML = SKINS.map(s => `
+      <button class="skin-pill ${s.id===state.skinId?'active':''}" data-skin="${s.id}">
+        <span class="skin-dot" style="background:${s.outline ? '#fff' : s.dot}; ${s.outline ? 'box-shadow:inset 0 0 0 2px #9aa3b5;' : ''}"></span>
+        ${s.label} <span style="opacity:.65;font-weight:500;">· ${s.sub}</span>
+      </button>
+    `).join('');
+    pickerRow.querySelectorAll('.skin-pill').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.skinId = btn.dataset.skin;
+        buildPicker();
+        render();
+      });
+    });
+  }
+
+  function emailViewInner(){
+    const initial = (state.fromName.trim()[0] || 'Y').toUpperCase();
+    return `
+      <div class="ev-toolbar">
+        <button class="ev-icon">&#8592;</button>
+        <div class="ev-toolbar-spacer"></div>
+        <button class="ev-icon">&#9679;&#9679;&#9679;</button>
+      </div>
+      <div class="ev-subject-row">
+        <input class="ev-subject" data-field="subject" value="${esc(state.subject)}" placeholder="Subject">
+      </div>
+      <div class="ev-meta">
+        <div class="ev-avatar">${initial}</div>
+        <div class="ev-meta-main">
+          <div class="ev-fromline">
+            <input class="ev-from-name" data-field="fromName" value="${esc(state.fromName)}" placeholder="Your name">
+            <span class="ev-anglebracket">&lt;<input class="ev-from-email" data-field="fromEmail" value="${esc(state.fromEmail)}" placeholder="you@email.com">&gt;</span>
+          </div>
+          <div class="ev-toline">to <input class="ev-to-name" data-field="toName" value="${esc(state.toName)}" placeholder="recipient name"></div>
+        </div>
+        <div class="ev-date-col">
+          <input class="ev-date" data-field="date" value="${esc(state.date)}">
+          <div class="ev-watermark">Preview only —<br>not an original email</div>
+        </div>
+      </div>
+      <div class="ev-body" contenteditable="true" data-placeholder="Type your message here…">${state.bodyHTML}</div>
+    `;
+  }
+
+  function desktopFrame(skin){
+    const chromeInner = skin.chrome==='mac'
+      ? `<span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><div class="addr-bar">${skin.brandMark}</div>`
+      : `<span class="win-dots"></span><div class="addr-bar">${skin.url||''}</div>`;
+    return `
+      <div class="device desktop-device">
+        <div class="browser-chrome">${chromeInner}</div>
+        <div class="app-body">
+          <div class="app-sidebar">
+            <div class="brand-mark">${skin.brandMark}</div>
+            <div class="compose-btn">${skin.compose||'Compose'}</div>
+            <ul class="folder-list">
+              <li class="active">Inbox</li>
+              <li>Starred</li>
+              <li>Sent</li>
+              <li>Drafts</li>
+            </ul>
+          </div>
+          <div class="email-view">${emailViewInner()}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function phoneFrame(skin){
+    return `
+      <div class="device phone-device">
+        <div class="phone-bezel">
+          <div class="status-bar"><span>9:41</span><span>&#128246; &#128267;</span></div>
+          <div class="app-topbar">
+            <button class="ev-icon">&#8592;</button>
+            <span class="app-title">${skin.brandMark}</span>
+            <button class="ev-icon">&#8942;</button>
+          </div>
+          <div class="email-view">${emailViewInner()}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function render(){
+    const skin = SKINS.find(s => s.id === state.skinId);
+    stage.className = 'stage skin-' + skin.id;
+    stage.innerHTML = skin.frame === 'phone' ? phoneFrame(skin) : desktopFrame(skin);
+    bindFieldEvents();
+  }
+
+  function bindFieldEvents(){
+    stage.querySelectorAll('[data-field]').forEach(el=>{
+      el.addEventListener('input', ()=>{ state[el.dataset.field] = el.value; });
+    });
+    const body = stage.querySelector('.ev-body');
+    body.addEventListener('input', ()=>{ state.bodyHTML = body.innerHTML; });
+  }
+
+  // formatting toolbar
+  document.querySelectorAll('.fmt-btn').forEach(btn=>{
+    btn.addEventListener('mousedown', e=> e.preventDefault()); // keep selection
+    btn.addEventListener('click', ()=>{
+      const body = stage.querySelector('.ev-body');
+      body.focus();
+      document.execCommand(btn.dataset.cmd, false, null);
+      state.bodyHTML = body.innerHTML;
+    });
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', ()=>{
+    state.subject = '';
+    state.bodyHTML = '';
+    render();
+    showToast('Cleared');
+  });
+
+  document.getElementById('themeToggle').addEventListener('click', ()=>{
+    darkMode = !darkMode;
+    document.body.classList.toggle('dark', darkMode);
+    document.getElementById('themeIcon').textContent = darkMode ? '\u2600\uFE0F' : '\u{1F319}';
+    document.getElementById('themeLabel').textContent = darkMode ? 'Light mode' : 'Dark mode';
+  });
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=> toast.classList.remove('show'), 1800);
+  }
+
+  async function copyBody(){
+    const body = stage.querySelector('.ev-body');
+    const html = body.innerHTML;
+    const text = body.innerText;
+    try{
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], {type:'text/html'}),
+          'text/plain': new Blob([text], {type:'text/plain'})
+        })
+      ]);
+      showToast('Message copied — formatting will carry into rich-text drafts');
+    }catch(e){
+      try{
+        await navigator.clipboard.writeText(text);
+        showToast('Message copied as plain text');
+      }catch(e2){
+        showToast('Could not copy — try selecting the text manually');
+      }
+    }
+  }
+
+  async function copySubject(){
+    try{
+      await navigator.clipboard.writeText(state.subject);
+      showToast('Subject copied');
+    }catch(e){
+      showToast('Could not copy — try selecting the text manually');
+    }
+  }
+
+  document.getElementById('copyBodyBtn').addEventListener('click', copyBody);
+  document.getElementById('copySubjectBtn').addEventListener('click', copySubject);
+
+  buildPicker();
+  render();
+</script>
+</body>
+</html>
