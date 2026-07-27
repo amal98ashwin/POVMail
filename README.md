@@ -35,8 +35,8 @@ The way you compose an email is rarely how the other person reads it. Font, spac
 Clone the repo and open the file in a browser:
 
 ```bash
-git clone https://github.com/<amal98ashwin>/<POVMail>.git
-cd <POVMail>
+git clone https://github.com/amal98ashwin/POVMail.git
+cd POVMail
 open povmail.html   
 ```
 
